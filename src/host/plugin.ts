@@ -28,8 +28,6 @@ interface HostContext {
   effect?(callback: () => void | (() => void), label?: string): void
   webServer?: { register(route: { kind: string; path: string; handler: RouteHandler }): () => void }
   commands?: { register(definition: CommandDefinition): () => void }
-  tools?: { register(definition: ToolDefinition): () => void }
-  workingDirectory?: { get?(sessionId: string): unknown }
   agents?: unknown
   sessions?: unknown
   on?(event: string, listener: (payload: unknown) => void): () => void
@@ -53,14 +51,6 @@ interface CommandDefinition {
   description: string
   input?: { hint: string }
   handler(invocation: { agent?: { followup?: (message: unknown) => unknown }; rawInput?: string }): Promise<{ kind: 'success' | 'error'; text: string }> | { kind: 'success' | 'error'; text: string }
-}
-
-interface ToolDefinition {
-  name: string
-  description: string
-  parameters?: unknown
-  execute?(args: Record<string, unknown>, invocation?: { sessionId?: string }): Promise<unknown> | unknown
-  handler?(args: Record<string, unknown>, invocation?: { sessionId?: string }): Promise<unknown> | unknown
 }
 
 let hostContext: HostContext | null = null
@@ -97,34 +87,6 @@ export function apply(ctx: HostContext): void {
             : { kind: 'error', text: '无法把审查请求交给当前 agent' }
         },
       })
-    })
-    ctx.inject(['tools'], (injected) => {
-      const tool: ToolDefinition = {
-        name: 'review_comment',
-        description: '把一条代码审查发现贴到 DSH 审查侧栏的对应行上。每条发现调用一次，不要用它修改文件。',
-        parameters: {
-          type: 'object',
-          properties: {
-            path: { type: 'string' },
-            line: { type: 'integer' },
-            side: { type: 'string', enum: ['old', 'new'] },
-            priority: { type: 'string' },
-            title: { type: 'string' },
-            body: { type: 'string' },
-          },
-          required: ['path', 'line', 'body'],
-        },
-        async execute(args, invocation) {
-          rememberFinding(invocation?.sessionId ?? 'global', args)
-          return { content: '已显示在审查侧栏' }
-        },
-      }
-      tool.handler = tool.execute
-      try {
-        injected.tools?.register(tool)
-      } catch (error) {
-        console.warn('[dsh-codex-review] review_comment tool was not registered', error)
-      }
     })
   }
 
@@ -244,19 +206,9 @@ async function workspaceFor(body: Record<string, unknown>, sessionId: string | n
 }
 
 function cwdFromContext(sessionId: string | null): string | null {
-  if (!sessionId || !hostContext?.workingDirectory?.get) return null
-  try {
-    const value = hostContext.workingDirectory.get(sessionId)
-    if (typeof value === 'string') return value
-    if (value && typeof value === 'object') {
-      const record = value as Record<string, unknown>
-      for (const key of ['cwd', 'path', 'workingDirectory', 'directory']) {
-        if (typeof record[key] === 'string') return record[key]
-      }
-    }
-  } catch {
-    return discoverSessionCwd(sessionId)
-  }
+  // Cordis throws if a service is read without being injected. The browser
+  // already sends the session cwd, and the same-origin fence is the trust check.
+  if (!sessionId) return null
   return discoverSessionCwd(sessionId)
 }
 

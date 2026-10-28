@@ -9,8 +9,13 @@ export const inject = ['slots', 'sidebarRightTabs', 'sidebarRight']
 const ID = 'dsh-codex-review'
 const KIND = 'codex-review'
 
+interface SessionSnapshot {
+  byId?: Record<string, { cwd?: string } | undefined>
+}
+
 interface SlotProps {
   sessionId?: string
+  useSessions?: (select: (sessions: SessionSnapshot) => string | undefined) => string | undefined
   useTabInfo?: () => { sessionId?: string; tab?: { sessionId?: string } } | null
 }
 
@@ -40,7 +45,6 @@ export function apply(ctx: ClientContext): void {
     ctx.effect?.(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
       name: 'sidebar.right.pane.tab',
       key: ID,
-      inject: (sessionId: string) => ({ sessionId }),
     }, ReviewTab)), 'dsh-codex-review: tab body')
 
     ctx.effect?.(() => {
@@ -52,9 +56,10 @@ export function apply(ctx: ClientContext): void {
         keepMounted: true,
         title: () => translate(detectLang(), 'tab'),
         guide: [{
+          id: 'review',
           order: 12,
-          title: translate(detectLang(), 'tab'),
-          description: translate(detectLang(), 'tabDescription'),
+          title: () => translate(detectLang(), 'tab'),
+          description: () => translate(detectLang(), 'tabDescription'),
         }],
       })
     }, 'dsh-codex-review: tab type')
@@ -78,15 +83,23 @@ export function apply(ctx: ClientContext): void {
 
 function ReviewTab(props: SlotProps): React.ReactElement {
   const sessionId = props.sessionId || props.useTabInfo?.()?.sessionId || props.useTabInfo?.()?.tab?.sessionId || ''
+  const selected = props.useSessions?.((sessions) => sessionCwd(sessions, sessionId))
+  const cwd = typeof selected === 'string' && selected ? selected : cwdOf(sessionId)
   const client = useMemo(() => createPluginClient({
     sessionId,
-    cwd: cwdOf(sessionId),
+    cwd,
     openFile(filePath, line) {
       openFile(sessionId, filePath, line)
     },
-  }), [sessionId])
+  }), [sessionId, cwd])
   return <ReviewPane client={client} />
 }
+
+function sessionCwd(sessions: SessionSnapshot, sessionId: string): string | undefined {
+  const record = sessions as SessionSnapshot & { items?: Array<{ sessionId?: string; cwd?: string }> }
+  return record.byId?.[sessionId]?.cwd ?? record.items?.find((item) => item.sessionId === sessionId)?.cwd
+}
+
 
 function ReviewOpener(): React.ReactElement {
   const lang = detectLang()

@@ -403,6 +403,7 @@ function DiffBody({ lang, loading, error, snapshot, filter, onRetry, onInit, onB
 }) {
   const t = (key: MessageKey, values?: Record<string, string | number>) => translate(lang, key, values)
   if (loading && snapshot.kind !== 'repo') return <div className="cxr-empty"><span className="cxr-spinner" /><p>{t('loading')}</p></div>
+  if (error && snapshot.kind !== 'repo') return <Empty lang={lang} title={t('loadFailed')} description={error}><button type="button" className="cxr-btn" onClick={onRetry}>{t('retry')}</button></Empty>
   if (snapshot.kind === 'missing-cwd') return <Empty lang={lang} title={t('missingCwd')} description={t('missingCwdDescription')} />
   if (snapshot.kind === 'not-repo') {
     return (
