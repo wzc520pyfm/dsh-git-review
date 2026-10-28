@@ -1,0 +1,4 @@
+# 把审查侧栏挂进当前 DSH profile。
+- insert:
+    - id: dsh-codex-review
+      name: dsh-codex-review
