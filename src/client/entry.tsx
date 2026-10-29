@@ -6,7 +6,7 @@ import { reviewPrompt } from '../review/prompts.ts'
 
 export const inject = ['slots', 'sidebarRightTabs', 'sidebarRight']
 
-const ID = 'dsh-codex-review'
+const ID = 'dsh-codex-review-sidebar'
 const KIND = 'codex-review'
 
 interface SessionSnapshot {
@@ -45,7 +45,7 @@ export function apply(ctx: ClientContext): void {
     ctx.effect?.(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
       name: 'sidebar.right.pane.tab',
       key: ID,
-    }, ReviewTab)), 'dsh-codex-review: tab body')
+    }, ReviewTab)), 'dsh-codex-review-sidebar: tab body')
 
     ctx.effect?.(() => {
       if (!ctx.sidebarRightTabs?.register) return () => undefined
@@ -62,20 +62,20 @@ export function apply(ctx: ClientContext): void {
           description: () => translate(detectLang(), 'tabDescription'),
         }],
       })
-    }, 'dsh-codex-review: tab type')
+    }, 'dsh-codex-review-sidebar: tab type')
 
     ctx.effect?.(() => ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
       name: 'conversation.session.header.utilities',
       id: ID,
       order: 18,
       inject: (sessionId: string) => ({ sessionId }),
-    }, ReviewOpener)), 'dsh-codex-review: opener')
+    }, ReviewOpener)), 'dsh-codex-review-sidebar: opener')
 
     ctx.effect?.(() => ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register({
       name: 'conversation.chat.commandview',
       key: 'review',
       inject: (sessionId: string) => ({ sessionId }),
-    }, ReviewCommand)), 'dsh-codex-review: command')
+    }, ReviewCommand)), 'dsh-codex-review-sidebar: command')
   }
   if (typeof ctx.inject === 'function') ctx.inject(['slots', 'sidebarRightTabs'], register)
   else register()
