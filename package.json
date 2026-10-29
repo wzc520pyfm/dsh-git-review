@@ -1,5 +1,5 @@
 {
-  "name": "dsh-codex-review",
+  "name": "dsh-codex-review-sidebar",
   "version": "0.1.0",
   "description": "把 Codex 侧栏里的「审查」装进 DSH 右侧栏：未暂存/已暂存/提交/分支/上轮对话、行内评论、暂存与还原。",
   "type": "module",
@@ -44,6 +44,10 @@
     "sidebar"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wzc520pyfm/dsh-git-review.git"
+  },
   "engines": {
     "node": ">=22.19"
   },
