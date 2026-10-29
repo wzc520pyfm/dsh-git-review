@@ -21,7 +21,19 @@ const MAX_PATCH = 1_000_000
 const MAX_FILE_PATCH = 350_000
 const MAX_UNTRACKED_BYTES = 400_000
 
-const GIT_PREFIX = ['-c', 'core.quotepath=false', '-c', 'core.pager=cat', '-c', 'advice.detachedHead=false']
+const GIT_PREFIX = ['-c', 'core.quotepath=false', '-c', 'core.pager=cat', '-c', 'advice.detachedHead=false', '-c', 'safe.directory=*']
+const MAX_UNTRACKED_LISTED = 200
+const MAX_UNTRACKED_EXPANDED = 80
+const UNTRACKED_EXCLUDES = [
+  ':(exclude,glob)**/node_modules/**',
+  ':(exclude,glob)**/dist/**',
+  ':(exclude,glob)**/build/**',
+  ':(exclude,glob)**/.next/**',
+  ':(exclude,glob)**/.nuxt/**',
+  ':(exclude,glob)**/.output/**',
+  ':(exclude,glob)**/coverage/**',
+  ':(exclude,glob)**/vendor/**',
+]
 
 interface GitResult {
   code: number
@@ -493,7 +505,10 @@ interface Porcelain {
 }
 
 async function porcelain(root: string): Promise<Map<string, Porcelain>> {
-  const result = await git(root, ['status', '--porcelain=v1', '-z', '-uall'])
+  const listed = ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.']
+  let result = await git(root, [...listed, ...UNTRACKED_EXCLUDES])
+  if (result.code !== 0 && /pathspec|magic|exclude/i.test(result.stderr)) result = await git(root, listed)
+  if (result.code !== 0) throw new Error(cleanGitError(result.stderr || result.stdout) || '无法读取 Git 状态')
   const map = new Map<string, Porcelain>()
   const parts = result.stdout.split('\0').filter((part) => part !== '')
   for (let index = 0; index < parts.length; index += 1) {
@@ -520,7 +535,9 @@ async function untrackedPaths(root: string): Promise<string[]> {
 
 async function untrackedFiles(root: string, paths: string[]): Promise<ParsedDiffFile[]> {
   const files: ParsedDiffFile[] = []
+  let expanded = 0
   for (const rel of paths) {
+    if (files.length >= MAX_UNTRACKED_LISTED || isVendorPath(rel)) continue
     const abs = safeJoin(root, rel)
     let info
     try {
@@ -529,11 +546,18 @@ async function untrackedFiles(root: string, paths: string[]): Promise<ParsedDiff
       continue
     }
     if (!info.isFile()) continue
-    if (info.size > MAX_UNTRACKED_BYTES) {
-      files.push(fileSkeleton(rel, 'untracked', true, true))
+    if (expanded >= MAX_UNTRACKED_EXPANDED || info.size > MAX_UNTRACKED_BYTES) {
+      files.push(fileSkeleton(rel, 'untracked', info.size > MAX_UNTRACKED_BYTES, true))
       continue
     }
-    const bytes = readFileSync(abs)
+    expanded += 1
+    let bytes: Buffer
+    try {
+      bytes = readFileSync(abs)
+    } catch {
+      files.push(fileSkeleton(rel, 'untracked', false, true))
+      continue
+    }
     if (isBinary(bytes)) {
       files.push(fileSkeleton(rel, 'untracked', true, false))
       continue
@@ -646,6 +670,15 @@ async function git(cwd: string, args: string[], input?: string): Promise<GitResu
 }
 
 function gitLike(command: string, cwd: string, args: string[], input?: string): Promise<GitResult> {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_ASKPASS: 'echo',
+    GCM_INTERACTIVE: 'never',
+  }
+  delete env.GIT_DIR
+  delete env.GIT_WORK_TREE
+  delete env.GIT_INDEX_FILE
   return new Promise((resolve) => {
     const child = execFile(
       command,
@@ -654,12 +687,7 @@ function gitLike(command: string, cwd: string, args: string[], input?: string): 
         cwd,
         maxBuffer: 12 * 1024 * 1024,
         timeout: args.includes('push') ? 60_000 : 30_000,
-        env: {
-          ...process.env,
-          GIT_TERMINAL_PROMPT: '0',
-          GIT_ASKPASS: 'echo',
-          GCM_INTERACTIVE: 'never',
-        },
+        env,
       },
       (error: ExecFileException | null, stdout, stderr) => {
         const numeric = typeof error?.code === 'number' ? error.code : error ? 1 : 0
@@ -722,6 +750,11 @@ function removeInside(root: string, rel: string): void {
   const abs = safeJoin(root, rel)
   if (!existsSync(abs)) return
   rmSync(abs, { force: true })
+}
+
+function isVendorPath(rel: string): boolean {
+  const parts = rel.replace(/\\/g, '/').split('/')
+  return parts.some((part) => part === 'node_modules' || part === 'dist' || part === 'build' || part === '.next' || part === '.nuxt' || part === '.output' || part === 'coverage' || part === 'vendor')
 }
 
 function isBinary(bytes: Buffer): boolean {
