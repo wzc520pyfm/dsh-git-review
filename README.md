@@ -21,15 +21,17 @@
 需要 DSH `0.1.5` 或更新（自带右侧栏），以及 Node.js 22.19+。
 
 ```bash
-dsh plugin --profile web add file:/path/to/dsh-codex-review
+dsh plugin --profile web add dsh-codex-review-sidebar
 ```
+
+本地目录也可以：`dsh plugin --profile web add file:/path/to/dsh-codex-review-sidebar`。
 
 `cordis.patch.yml` 会把插件写进 profile。装完后重启 DSH。客户端改动刷新页面即可，宿主改动需要重启。
 
 卸掉：
 
 ```bash
-dsh plugin --profile web remove dsh-codex-review
+dsh plugin --profile web remove dsh-codex-review-sidebar
 ```
 
 ## 本地看面板

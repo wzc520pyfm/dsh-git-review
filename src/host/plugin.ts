@@ -16,7 +16,7 @@ import type { ActionRequest, CommitInput, LoadQuery, ReviewFilter, ReviewFinding
 import { isSameOrigin, readBody, sendJson } from './http.ts'
 import { findingId, readSessionBlob, scanSessionText, toReviewFindings } from './session-scan.ts'
 
-export const name = 'dsh-codex-review'
+export const name = 'dsh-codex-review-sidebar'
 export const inject = ['webServer']
 
 const PREFIX = '/api/codex-review'
@@ -63,8 +63,8 @@ export function apply(ctx: HostContext): void {
     const dispose = server.register({ kind: 'prefix', path: PREFIX, handler: (req, res) => handle(req, res) })
     return () => dispose()
   }
-  if (typeof ctx.inject === 'function') ctx.inject(['webServer'], (injected) => injected.effect ? injected.effect(register, 'dsh-codex-review: routes') : register())
-  else if (ctx.effect) ctx.effect(register, 'dsh-codex-review: routes')
+  if (typeof ctx.inject === 'function') ctx.inject(['webServer'], (injected) => injected.effect ? injected.effect(register, 'dsh-codex-review-sidebar: routes') : register())
+  else if (ctx.effect) ctx.effect(register, 'dsh-codex-review-sidebar: routes')
   else register()
 
   if (typeof ctx.inject === 'function') {
