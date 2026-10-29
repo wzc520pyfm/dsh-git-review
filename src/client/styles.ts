@@ -50,9 +50,10 @@ export const reviewCss = `
   padding: 4px 8px;
   border-bottom: 0.5px solid var(--cxr-border);
 }
-.cxr-header-row, .cxr-tools, .cxr-source { display: flex; align-items: center; min-width: 0; gap: 4px; }
+.cxr-header-row, .cxr-tools, .cxr-source, .cxr-source-meta { display: flex; align-items: center; min-width: 0; gap: 4px; }
 .cxr-header-row { justify-content: space-between; }
-.cxr-source { flex: 1; overflow: hidden; }
+.cxr-source { flex: 1; overflow: visible; }
+.cxr-source-meta { flex: 1; overflow: hidden; }
 .cxr-tools { flex: 0 0 auto; }
 .cxr-btn, .cxr-icon-btn {
   display: inline-flex;

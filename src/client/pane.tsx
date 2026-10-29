@@ -38,11 +38,14 @@ const DEFAULT_SETTINGS: Settings = {
 }
 
 export function ensureReviewStyle(): void {
-  if (typeof document === 'undefined' || document.getElementById('dsh-codex-review-style')) return
-  const style = document.createElement('style')
-  style.id = 'dsh-codex-review-style'
-  style.textContent = reviewCss
-  document.head.appendChild(style)
+  if (typeof document === 'undefined') return
+  let style = document.getElementById('dsh-codex-review-style')
+  if (!style) {
+    style = document.createElement('style')
+    style.id = 'dsh-codex-review-style'
+    document.head.appendChild(style)
+  }
+  if (style.textContent !== reviewCss) style.textContent = reviewCss
 }
 
 export function ReviewPane({ client, preview = false, lang = detectLang() }: { client: ReviewClient; preview?: boolean; lang?: Lang }) {
@@ -169,14 +172,16 @@ export function ReviewPane({ client, preview = false, lang = detectLang() }: { c
                 if (sha) setCommitSha(sha)
               }}
             />
-            {filter === 'commit' && snapshot.selectedCommit ? <span className="cxr-subject">{snapshot.selectedCommit.subject}</span> : null}
-            <LineStats additions={snapshot.additions} deletions={snapshot.deletions} />
-            {refreshing ? <span className="cxr-spinner" role="status" aria-label={t('refreshing')} /> : null}
-            {snapshot.repos.length > 1 ? (
-              <select className="cxr-input" style={{ width: 'auto' }} aria-label={t('repo')} value={snapshot.root ?? ''} onChange={(event) => setRoot(event.target.value)}>
-                {snapshot.repos.map((repo) => <option key={repo.root} value={repo.root}>{repo.label}</option>)}
-              </select>
-            ) : null}
+            <div className="cxr-source-meta">
+              {filter === 'commit' && snapshot.selectedCommit ? <span className="cxr-subject">{snapshot.selectedCommit.subject}</span> : null}
+              <LineStats additions={snapshot.additions} deletions={snapshot.deletions} />
+              {refreshing ? <span className="cxr-spinner" role="status" aria-label={t('refreshing')} /> : null}
+              {snapshot.repos.length > 1 ? (
+                <select className="cxr-input" style={{ width: 'auto' }} aria-label={t('repo')} value={snapshot.root ?? ''} onChange={(event) => setRoot(event.target.value)}>
+                  {snapshot.repos.map((repo) => <option key={repo.root} value={repo.root}>{repo.label}</option>)}
+                </select>
+              ) : null}
+            </div>
           </div>
           <div className="cxr-tools">
             <OptionsMenu
