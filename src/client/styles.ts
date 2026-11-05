@@ -303,4 +303,25 @@ export const reviewCss = `
 .cxr-opener:hover { background: var(--cxr-hover); color: var(--cxr-fg); }
 .cxr-choices { display: flex; flex-direction: column; gap: 6px; }
 .cxr-status { width: 16px; text-align: center; font-family: var(--cxr-mono); font-size: 11px; }
+
+.cxr-pierre-list { display: flex; flex-direction: column; min-width: 0; }
+.cxr-pierre-file { min-width: 0; }
+.cxr-pierre-diff {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  --diffs-font-family: var(--cxr-mono);
+  font-size: 12px;
+}
+.cxr-pierre-diff .cxr-file-head { position: sticky; top: 0; }
+.cxr-pierre-tree {
+  --trees-fg-override: var(--cxr-fg);
+  --trees-border-color-override: var(--cxr-border);
+  --trees-selected-bg-override: var(--cxr-hover);
+}
+.cxr-pierre-tree > * { flex: 1; min-height: 0; }
+.cxr-pierre-diff .cxr-plus { opacity: 0.85; }
+.cxr-pierre-diff .cxr-comment,
+.cxr-pierre-diff .cxr-finding,
+.cxr-pierre-diff .cxr-hunk-head { margin-left: 8px; margin-right: 8px; }
 `
