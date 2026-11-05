@@ -16,6 +16,12 @@
 
 `/review`、`/review uncommitted`、`/review branch main`、`/review commit <sha>` 和 `/review 你的要求` 走 DSH 的命令面。审查请求要求模型只读，并用 `:::review` 块把发现贴回对应行。
 
+## Diff UI
+
+审查差异与文件树基于 Pierre 开源包渲染：`@pierre/diffs`（语法高亮 unified/split 差异、行内注释插槽）与 `@pierre/trees`（侧栏文件树、Git 状态与搜索）。宿主 Git 能力（暂存/还原/提交/推送/PR、`/review`）保持不变。
+
+The review diff surface and file tree are rendered with Pierre’s open-source packages: `@pierre/diffs` (highlighted unified/split diffs and annotation slots) and `@pierre/trees` (sidebar file tree with git status and search). Host Git capabilities (stage/discard/commit/push/PR, `/review`) are unchanged.
+
 ## 安装
 
 需要 DSH `0.1.5` 或更新（自带右侧栏），以及 Node.js 22.19+。

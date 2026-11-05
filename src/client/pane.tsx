@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import type { GitStatus, GitStatusEntry } from '@pierre/trees'
+import { FileTree as PierreFileTree, useFileTree } from '@pierre/trees/react'
 import type { ReviewClient } from './api.ts'
 import { DiffList, type LocalComment } from './diff-view.tsx'
 import { detectLang, translate, type Lang, type MessageKey } from './i18n.ts'
@@ -64,7 +66,6 @@ export function ReviewPane({ client, preview = false, lang = detectLang() }: { c
   const [viewed, setViewed] = useState<Record<string, boolean>>({})
   const [comments, setComments] = useState<LocalComment[]>([])
   const [dismissed, setDismissed] = useState<string[]>([])
-  const [query, setQuery] = useState('')
   const [revertTarget, setRevertTarget] = useState<null | { scope: 'section' | 'file' | 'hunk'; path?: string; hunkHeader?: string }>(null)
   const [skipChecked, setSkipChecked] = useState(settings.skipRevert)
   const [commitOpen, setCommitOpen] = useState(false)
@@ -317,7 +318,7 @@ export function ReviewPane({ client, preview = false, lang = detectLang() }: { c
         {settings.filesVisible ? (
           <>
             <div className="cxr-resizer" onPointerDown={(event) => dragTree(event, settings.treeWidth, (treeWidth) => updateSettings({ treeWidth }))} />
-            <FileTree lang={lang} files={files} width={settings.treeWidth} query={query} onQuery={setQuery} comments={comments} onPick={(filePath) => {
+            <FileTree lang={lang} files={files} width={settings.treeWidth} comments={comments} onPick={(filePath) => {
               setOpen((current) => ({ ...current, [filePath]: true }))
               document.querySelector(`[data-review-path="${cssEscape(filePath)}"]`)?.scrollIntoView({ block: 'start' })
             }} />
@@ -585,65 +586,71 @@ function JumpMenu({ lang, files, onPick }: { lang: Lang; files: ReviewFile[]; on
   )
 }
 
-function FileTree({ lang, files, width, query, onQuery, comments, onPick }: {
+function FileTree({ lang, files, width, comments, onPick }: {
   lang: Lang
   files: ReviewFile[]
   width: number
-  query: string
   comments: LocalComment[]
-  onQuery(value: string): void
   onPick(path: string): void
 }) {
-  const matches = files.filter((file) => file.path.toLowerCase().includes(query.toLowerCase()))
-  const tree = buildTree(matches)
+  const paths = useMemo(() => files.map((file) => file.path), [files])
+  const gitStatus = useMemo(() => files.map((file): GitStatusEntry => ({
+    path: file.path,
+    status: toPierreGitStatus(file.status),
+  })), [files])
+
+  const filesRef = useRef(files)
+  const commentsRef = useRef(comments)
+  const onPickRef = useRef(onPick)
+  filesRef.current = files
+  commentsRef.current = comments
+  onPickRef.current = onPick
+
+  const { model } = useFileTree({
+    paths,
+    initialExpansion: 'open',
+    search: true,
+    gitStatus,
+    flattenEmptyDirectories: true,
+    onSelectionChange(selected) {
+      const filePath = selected.find((entry) => !entry.endsWith('/'))
+      if (filePath) onPickRef.current(filePath)
+    },
+    renderRowDecoration({ item }) {
+      if (item.kind !== 'file') return null
+      const file = filesRef.current.find((entry) => entry.path === item.path)
+      const count = commentsRef.current.filter((comment) => comment.path === item.path && comment.text.trim()).length
+      const parts: Array<{ text: string; color?: string }> = []
+      if (file?.additions) parts.push({ text: `+${file.additions}`, color: 'var(--cxr-add, #3fb950)' })
+      if (file?.deletions) parts.push({ text: `${parts.length ? ' ' : ''}−${file.deletions}`, color: 'var(--cxr-del, #f85149)' })
+      if (count) parts.push({ text: `${parts.length ? ' ' : ''}💬${count}` })
+      if (parts.length === 0) return null
+      return { text: parts.map((part) => part.text).join(''), parts }
+    },
+  })
+
+  useEffect(() => {
+    model.resetPaths(paths)
+    model.setGitStatus(gitStatus)
+  }, [model, paths, gitStatus])
+
   return (
-    <aside className="cxr-tree" style={{ ['--cxr-tree-width' as string]: `${width}px` }}>
-      <div className="cxr-tree-search">
-        <input className="cxr-input" placeholder={translate(lang, 'searchFiles')} value={query} onChange={(event) => onQuery(event.target.value)} aria-label={translate(lang, 'changedFiles')} />
-      </div>
-      <div className="cxr-tree-scroll">
-        {matches.length === 0 ? <div className="cxr-dir">{translate(lang, 'noMatch')}</div> : <TreeNodes nodes={tree} depth={0} comments={comments} onPick={onPick} />}
-      </div>
+    <aside className="cxr-tree cxr-pierre-tree" style={{ ['--cxr-tree-width' as string]: `${width}px` }} aria-label={translate(lang, 'changedFiles')}>
+      <PierreFileTree
+        model={model}
+        header={<span className="cxr-dir">{translate(lang, 'changedFiles')}</span>}
+        style={{ height: '100%', minHeight: 0 }}
+      />
     </aside>
   )
 }
 
-interface TreeNode { name: string; path: string; file?: ReviewFile; children: TreeNode[] }
-
-function buildTree(files: ReviewFile[]): TreeNode[] {
-  const root: TreeNode = { name: '', path: '', children: [] }
-  for (const file of files) {
-    const parts = file.path.split('/')
-    let cursor = root
-    parts.forEach((part, index) => {
-      const path = parts.slice(0, index + 1).join('/')
-      let child = cursor.children.find((entry) => entry.name === part)
-      if (!child) {
-        child = { name: part, path, children: [] }
-        cursor.children.push(child)
-      }
-      if (index === parts.length - 1) child.file = file
-      cursor = child
-    })
-  }
-  return root.children
-}
-
-function TreeNodes({ nodes, depth, comments, onPick }: { nodes: TreeNode[]; depth: number; comments: LocalComment[]; onPick(path: string): void }) {
-  return (
-    <>
-      {nodes.map((node) => (
-        <div key={node.path}>
-          <button type="button" className="cxr-tree-row" style={{ paddingLeft: 8 + depth * 12 }} data-active={node.file ? '0' : undefined} onClick={() => node.file && onPick(node.path)}>
-            <span className={node.file ? 'cxr-tree-name' : 'cxr-dir cxr-tree-name'}>{node.file ? node.name : `${node.name}/`}</span>
-            {node.file ? <span className="cxr-stats"><span className="cxr-add">{node.file.additions ? `+${node.file.additions}` : ''}</span><span className="cxr-del">{node.file.deletions ? `−${node.file.deletions}` : ''}</span></span> : null}
-            {node.file && comments.some((comment) => comment.path === node.file?.path && comment.text.trim()) ? <span className="cxr-badge">{comments.filter((comment) => comment.path === node.file?.path && comment.text.trim()).length}</span> : null}
-          </button>
-          {node.children.length > 0 ? <TreeNodes nodes={node.children} depth={depth + 1} comments={comments} onPick={onPick} /> : null}
-        </div>
-      ))}
-    </>
-  )
+function toPierreGitStatus(status: ReviewFile['status']): GitStatus {
+  if (status === 'added') return 'added'
+  if (status === 'deleted') return 'deleted'
+  if (status === 'renamed' || status === 'copied') return 'renamed'
+  if (status === 'untracked') return 'untracked'
+  return 'modified'
 }
 
 function Modal({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose(): void; children: React.ReactNode }) {

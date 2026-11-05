@@ -20,7 +20,8 @@ const client = await esbuild.build({
   platform: 'browser',
   target: 'es2022',
   jsx: 'transform',
-  external: ['react', 'react-dom'],
+  minify: true,
+  external: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
   write: false,
 })
 

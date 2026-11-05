@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { getSingularPatch } from '@pierre/diffs'
 import { hunkPatch, parseUnifiedDiff } from '../src/review/parse-diff.ts'
 import { inlineCommentPrompt, parseFindingFences, reviewPrompt } from '../src/review/prompts.ts'
+import { reviewFileToUnifiedPatch } from '../src/review/to-patch.ts'
 import { pairChangedLines, wordDiff } from '../src/review/word-diff.ts'
 
 const SAMPLE = `diff --git a/src/app.ts b/src/app.ts
@@ -72,4 +74,15 @@ test('word diff marks the changed token', () => {
     { kind: 'context', text: 'c' },
   ])
   assert.equal(pairs.get(0), 1)
+})
+
+test('reviewFileToUnifiedPatch rebuilds a patch pierre can parse', () => {
+  const files = parseUnifiedDiff(SAMPLE)
+  const file = files[0]!
+  const patch = reviewFileToUnifiedPatch(file)
+  assert.match(patch, /diff --git a\/src\/app\.ts b\/src\/app\.ts/)
+  const meta = getSingularPatch(patch)
+  assert.equal(meta.name, 'src/app.ts')
+  assert.equal(meta.type, 'change')
+  assert.ok(meta.hunks.length >= 1)
 })
