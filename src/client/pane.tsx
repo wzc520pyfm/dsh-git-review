@@ -93,20 +93,22 @@ export function ReviewPane({ client, preview = false, lang = detectLang() }: { c
       const next = await client.load(loadQuery)
       if (requestId.current !== id) return
       setSnapshot(next)
-      setError(next.kind === 'error' ? next.error ?? t('loadFailed') : null)
-      if (!root && next.root) setRoot(next.root)
+      if (next.kind === 'error') setError(next.error ?? t('loadFailed'))
+      else if (next.kind === 'repo') setError(null)
+      if (next.kind === 'repo' && !root && next.root) setRoot(next.root)
       if (!settings.baseBranch && next.baseBranch) updateSettings({ baseBranch: next.baseBranch })
-      if (next.root && commentsRoot.current !== next.root) {
+      if (next.kind === 'repo' && next.root && commentsRoot.current !== next.root) {
         commentsRoot.current = next.root
         setComments(readComments(next.root))
       }
-      setLoading(false)
-      setRefreshing(false)
     } catch (cause) {
       if (requestId.current !== id) return
       setError(cause instanceof Error ? cause.message : String(cause))
-      setLoading(false)
-      setRefreshing(false)
+    } finally {
+      if (requestId.current === id) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }
 
@@ -248,10 +250,19 @@ export function ReviewPane({ client, preview = false, lang = detectLang() }: { c
             onRetry={() => void reload(false)}
             onInit={async () => {
               setBusy(true)
+              setError(null)
               try {
-                setSnapshot(await client.init())
+                const next = await client.init()
+                setSnapshot(next)
+                if (next.kind === 'error') setError(next.error ?? t('loadFailed'))
+                else setError(null)
+                if (next.kind === 'repo' && next.root) setRoot(next.root)
+                setLoading(false)
               } catch (cause) {
-                showToast(t('gitInitError', { message: cause instanceof Error ? cause.message : String(cause) }))
+                const message = cause instanceof Error ? cause.message : String(cause)
+                setError(message)
+                showToast(t('gitInitError', { message }))
+                setLoading(false)
               } finally {
                 setBusy(false)
               }
@@ -407,16 +418,16 @@ function DiffBody({ lang, loading, error, snapshot, filter, onRetry, onInit, onB
   children: React.ReactNode
 }) {
   const t = (key: MessageKey, values?: Record<string, string | number>) => translate(lang, key, values)
-  if (loading && snapshot.kind !== 'repo') return <div className="cxr-empty"><span className="cxr-spinner" /><p>{t('loading')}</p></div>
-  if (error && snapshot.kind !== 'repo') return <Empty lang={lang} title={t('loadFailed')} description={error}><button type="button" className="cxr-btn" onClick={onRetry}>{t('retry')}</button></Empty>
-  if (snapshot.kind === 'missing-cwd') return <Empty lang={lang} title={t('missingCwd')} description={t('missingCwdDescription')} />
   if (snapshot.kind === 'not-repo') {
     return (
-      <Empty lang={lang} title={t('gitRequiredTitle')} description={t('gitRequiredDescription')}>
+      <Empty lang={lang} title={t('gitRequiredTitle')} description={error || t('gitRequiredDescription')}>
         <button type="button" className="cxr-btn" disabled={busy} onClick={onInit}>{busy ? t('creatingRepo') : t('createRepo')}</button>
       </Empty>
     )
   }
+  if (loading && snapshot.kind !== 'repo') return <div className="cxr-empty"><span className="cxr-spinner" /><p>{t('loading')}</p></div>
+  if (error && snapshot.kind !== 'repo') return <Empty lang={lang} title={t('loadFailed')} description={error}><button type="button" className="cxr-btn" onClick={onRetry}>{t('retry')}</button></Empty>
+  if (snapshot.kind === 'missing-cwd') return <Empty lang={lang} title={t('missingCwd')} description={t('missingCwdDescription')} />
   if (error && snapshot.files.length === 0) {
     return <Empty lang={lang} title={t('loadFailed')} description={error}><button type="button" className="cxr-btn" onClick={onRetry}>{t('retry')}</button></Empty>
   }

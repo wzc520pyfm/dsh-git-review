@@ -83,6 +83,23 @@ test('a plain directory is not a repository until init', async () => {
   assert.equal(after.kind, 'repo')
 })
 
+test('init snapshot lists project files and skips dependency directories', async () => {
+  const cwd = mkdtempSync(path.join(tmpdir(), 'codex-review-init-'))
+  mkdirSync(path.join(cwd, 'node_modules', 'pkg'), { recursive: true })
+  for (let index = 0; index < 80; index += 1) writeFileSync(path.join(cwd, 'node_modules', 'pkg', `file-${index}.js`), 'module.exports = 1\n')
+  mkdirSync(path.join(cwd, 'src'))
+  writeFileSync(path.join(cwd, 'src', 'App.vue'), '<template><p>hi</p></template>\n')
+  await initRepository(cwd)
+  const started = Date.now()
+  const snapshot = await loadReview(cwd, { filter: 'unstaged' })
+  assert.ok(Date.now() - started < 5000)
+  assert.equal(snapshot.kind, 'repo')
+  assert.equal(snapshot.files.some((file) => file.path.includes('node_modules')), false)
+  const app = snapshot.files.find((file) => file.path === 'src/App.vue')
+  assert.ok(app)
+  assert.match(app.hunks.flatMap((hunk) => hunk.lines.map((line) => line.text)).join('\n'), /hi/)
+})
+
 test('paths cannot escape the repository', () => {
   assert.throws(() => safeRelative('/repo', '../secret'), /路径无效/)
   assert.throws(() => safeRelative('/repo', '/etc/passwd'), /路径无效/)
